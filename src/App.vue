@@ -1,6 +1,7 @@
 <template>
   <main class="container">
     <div style="margin: 0 auto">
+      <button @click="fetchVersion">Fetch Version</button>
       <button class="btn" @click="greet" style="margin-left: 200px">Greet</button>
     </div>
 
@@ -25,13 +26,31 @@
 
     <p>{{ greetMsg }}</p>
 
-    <div class="cart" style="background-color: antiquewhite; width: 24px; height: 24px ;margin: 0 auto"> </div>
+    <div class="cart" style="background-color: antiquewhite; width: 24px; height: 24px; margin: 0 auto"></div>
+
+    <Dialog v-model:open="isShow">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit profile</DialogTitle>
+          <DialogDescription> Make changes to your profile here. Click save when you're done. </DialogDescription>
+        </DialogHeader>
+
+        {{ version }}
+
+        <DialogFooter> Save changes </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </main>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+
+import { check } from '@tauri-apps/plugin-updater'
+import { relaunch } from '@tauri-apps/plugin-process'
+
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 
 const greetMsg = ref('')
 const name = ref('')
@@ -53,7 +72,7 @@ async function greet() {
 
   const btnRect = btn.getBoundingClientRect()
 
-  console.log(btnRect) 
+  console.log(btnRect)
   const left = btnRect.left + btnRect.width / 2 - PLUS_SIZE / 2,
     top = btnRect.top + btnRect.height / 2 - PLUS_SIZE / 2
 
@@ -64,7 +83,6 @@ async function greet() {
   const x = cartRect.left + cartRect.width / 2 - PLUS_SIZE / 2 - left
   // 纵向移动的距离是 加号的top加上它自身高度的一半，减去购物车的top加上它自身高度的一半。
   const y = cartRect.top + cartRect.height / 2 - PLUS_SIZE / 2 - top
-
 
   console.log(left)
   console.log(x)
@@ -81,6 +99,40 @@ async function greet() {
   })
 
   document.body.appendChild(div)
+}
+
+const isShow = ref()
+const version = reactive({})
+
+const fetchVersion = async () => {
+  const update = await check()
+
+  if (update) {
+    isShow.value = true
+    Object.assign(version, update)
+    console.log(`found update ${update.version} from ${update.date} with notes ${update.body}`)
+    let downloaded = 0
+    let contentLength = 0
+    // alternatively we could also call update.download() and update.install() separately
+    await update.downloadAndInstall(event => {
+      switch (event.event) {
+        case 'Started':
+          contentLength = event.data.contentLength
+          console.log(`started downloading ${event.data.contentLength} bytes`)
+          break
+        case 'Progress':
+          downloaded += event.data.chunkLength
+          console.log(`downloaded ${downloaded} from ${contentLength}`)
+          break
+        case 'Finished':
+          console.log('download finished')
+          break
+      }
+    })
+
+    console.log('update installed')
+    // await relaunch()
+  }
 }
 </script>
 
